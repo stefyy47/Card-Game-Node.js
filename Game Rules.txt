@@ -1,0 +1,8 @@
+Each player starts with 5 cards in hand and each card represents points. Each game one random card will be selected as atu,
+meaning that card will be 0 points for the duration of the game.
+Each turn a player has to put down a card(if he hastwo or three kings in hand, he puts all of them down if he wants to throw a king). 
+Then he has to pick a the card from the top of the deck or the card last player put down(only one even if the last player threw three kings). 
+At a player's 3rd turn he can say claim or continue playing.
+If he says claim his points in hands are compared to other players: 
+-If he has < points than everyone else he wins and the player with biggest amount of points loses. 
+-If someone else has <= points with the player that says claim, the player that said claim loses.

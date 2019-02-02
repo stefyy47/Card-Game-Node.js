@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+
+
+<script src = "https://cdn.socket.io/socket.io-1.4.5.js"></script>
+<script>
+  var socket = io();
+</script>
+<script>
+function getRandomColor() {
+  var letters = '0123456789ABCDEF';
+  var color = '#';
+  for (var i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
+  }
+  return color;
+}
+  var Claim;
+  Claim = document.createElement("input");
+  Claim.type = "button";
+  Claim.value = "CLAIM!";
+  var CanIFinish = false;
+  socket.on("NuTePotiConecta",function(){
+    socket.removeListener("NuTePotiConecta");
+    alert("Prea multi jucatori sau runda a inceput deja");
+  });
+  socket.on("YouCanFinishNow",function(){
+    socket.removeListener("YouCanFinishNow");
+    CanIFinish = true;
+  });
+  socket.on("Castigator",function(winner){
+    if(Player.id == winner.Idul && winner.MeorNot == 1){
+      alert("Ai pierdut cu " + winner.Punctaj + " puncte");
+      socket.disconnect();
+    }
+    else if(winner.MeorNot == 1){
+      alert("Jucatorul cu id-ul: " + winner.Idul + " a pierdut cu " + winner.Punctaj + " puncte");
+      setTimeout(function(){
+        location.reload();
+      },5000);
+    }
+    else if(Player.id == winner.Idul && winner.MeorNot == 0){
+      alert("Cineva a avut <= puncte decat tine.. ai pierdut");
+      socket.disconnect();
+    }
+    else if(winner.MeorNot == 0){
+      alert("Jucatorul cu id-ul " + winner.Idul + " a pierdut dupa ce a zis claim");
+      setTimeout(function(){
+        location.reload();
+      },5000);
+    }
+  });
+  socket.on("WhosTurn",function(ree){
+  //  socket.removeListener("WhosTurn");
+  if(ree.LastChoice == 0)
+    console.log("Jucatorul cu id-ul: " + ree.id + " a tras din pachet");
+  else {
+    console.log("Jucatorul cu id-ul: " + ree.id + " a luat de jos " + ree.CardPicked);
+  }
+    if(ree.id + 1 == Player.id){
+      alert("E randul tau");
+      console.log("Cartea de jos: " + ree.UltimaCartee);
+    }
+  });
+  var Player = {};
+  Player.Carti_mana = [];
+  Player.OK = 0;
+
+  var divul = document.createElement("div");
+  document.body.appendChild(divul);
+  var Afisare_CartiMana = [];
+  socket.on("DateJoc",function(data){ //Receive the cards in hand and the atuu, also shows them in P html elements(Afisare_CartiMana)
+
+  for(let i = 0 ; i < data.CartileDinMana.length ; i++){
+    Player.Carti_mana.push(data.CartileDinMana[i]);
+    Afisare_CartiMana[i] = document.createElement("P");
+    Afisare_CartiMana[i].style.display = "inline-block";
+    Afisare_CartiMana[i].style.margin = "1em";
+    Afisare_CartiMana[i].style.color = getRandomColor();
+    var text = document.createTextNode(data.CartileDinMana[i]);
+    Afisare_CartiMana[i].appendChild(text);
+    divul.appendChild(Afisare_CartiMana[i]);
+  }
+  Player.id = data.Idul;
+  if(Player.id == 0)
+    console.log(data.UltimaCartee);
+  Player.atu = data.Atuul;
+  Player.Puncte = data.Punctele;
+  document.body.appendChild(document.createTextNode("Esti jucatorul cu id-ul: " + data.Idul));
+  document.body.appendChild(document.createElement("br"));
+  var AfisareAtu = document.createTextNode("Atuul este: " + data.atuul + "    ");
+  var AfisarePuncte = document.createElement("P");
+  AfisarePuncte.id = "AfisarePuncte";
+  AfisarePuncte.innerHTML = "Punctele din mana: " + data.Punctele;  //Calculates and shows the points in your hand
+  document.body.appendChild(AfisareAtu);
+  document.body.appendChild(AfisarePuncte);
+  });
+  var DivulInput = document.createElement("div");  //The div where we will have two inputs(one text(for the card you want to throw) and one button for confirm)
+  document.body.appendChild(DivulInput);
+  var inputulText = document.createElement("input");
+  inputulText.type = "text";
+  DivulInput.appendChild(inputulText);
+  var InputulButon = document.createElement("input");
+  InputulButon.type = "button";
+  InputulButon.value = "Da jos cartea";
+  DivulInput.appendChild(InputulButon);
+  InputulButon.onclick = function(){
+      socket.emit("CereJucatorCurent",{}); // Asks the server if it's this player turn
+      socket.on("PrimesteJucatorCurent",function(data){ // Receive the information asked(also if there is only one player you can't play)
+        socket.removeListener("PrimesteJucatorCurent");
+        if(Player.id == data.JucatorCurent && data.NumarJucatori > 1){
+
+          let i = 0;
+          while(i < Player.Carti_mana.length){  //If it's this player turn, throw all the cards in hand that was the input of the text box
+            if(Player.Carti_mana[i] == inputulText.value){
+              socket.emit("UltimaCarteDeJos",{ //Sends the server the cards thrown to keep them in another pack
+                UltimaCarte:Player.Carti_mana[i],
+              });
+              divul.removeChild(Afisare_CartiMana[i]);//You can't see the cards you threw anymore
+              Afisare_CartiMana.splice(i, 1);
+              Player.Carti_mana.splice(i, 1);
+              Player.OK = 1;
+            }
+            else i++;
+          }
+          if(Player.OK == 0){                               //This will be an alert if you chose to throw a card that you don't have in hand(you have to choose again)
+            alert("Alege o carte din mana, scrub");
+            socket.disconnect();
+          }
+          else{
+            if(CanIFinish == true){
+              document.body.removeChild(Claim);
+            }
+            DivulInput.removeChild(InputulButon); // You can't throw anymore until your turn comes back again(first you have to pick up a card then you wait your turn)
+            var TrageDeJos = document.createElement("input"); //After throwing a card you have to pick the one the last player threw
+            var TrageDinPachet = document.createElement("input"); // Or pick a card from the pack
+            TrageDeJos.value = "TrageDeJos";
+            TrageDinPachet.value = "TrageDinPachet";
+            TrageDeJos.type = "button";
+            TrageDinPachet.type = "button";
+            var UltimaCarticica = document.createElement("P"); // Shows the card last player threw(if you are the first player on first turn the last card will be the card on top of the pack)
+            socket.emit("CereUltimaCarte",{});
+            socket.on("UltimaCarte",function(data){
+            socket.removeListener("UltimaCarte");
+              Player.UltimaCarte = data.UltimaaCarte;
+              if(data.UltimaaCarte != " ")
+                UltimaCarticica.innerHTML = "Ultima carte de jos: " + data.UltimaaCarte;
+              else
+                UltimaCarticica.innerHTML = "Nicio carte jos";
+            });
+            UltimaCarticica.style.color = "red";
+            document.body.appendChild(UltimaCarticica);
+            document.body.appendChild(TrageDeJos);
+            document.body.appendChild(TrageDinPachet);
+            TrageDinPachet.onclick = function(){ // Choosing to pick the top card from the pack
+              document.body.removeChild(TrageDeJos);
+              document.body.removeChild(TrageDinPachet);
+              socket.emit("TragDinPachet",{
+                Player:Player,
+              });
+              socket.on("AmTrasDinPachet",function(data){
+                  socket.removeListener("AmTrasDinPachet");
+                  Player.Puncte = data.NoulPunctaj; // The new score calculated with the new card - the thrown cards
+                  Player.Carti_mana.push(data.NouaMana);
+                  let NouaCarte = document.createElement("P");
+                  NouaCarte.innerHTML = data.NouaMana;
+                  NouaCarte.style.display = "inline-block";
+                  NouaCarte.style.margin = "1em";
+                  Afisare_CartiMana.push(NouaCarte);
+                  Afisare_CartiMana[Afisare_CartiMana.length - 1].style.color = getRandomColor();
+                  divul.appendChild(Afisare_CartiMana[Afisare_CartiMana.length - 1]);
+                  document.getElementById("AfisarePuncte").innerHTML = "Punctele din mana: " + Player.Puncte;
+
+                  DivulInput.appendChild(InputulButon);
+                  Player.OK = 0;
+                  document.body.removeChild(UltimaCarticica);
+                  if(CanIFinish == true){
+                    document.body.appendChild(Claim);
+                  }
+              });
+            }
+            TrageDeJos.onclick = function(){
+              document.body.removeChild(TrageDeJos);
+              document.body.removeChild(TrageDinPachet);
+              Player.Carti_mana.push(Player.UltimaCarte);
+              socket.emit("TrageDeJos",{
+                Player:Player,
+              });
+                socket.on("AmTrasDeJos",function(data){
+                socket.removeListener("AmTrasDeJos");
+                Player.Puncte = data.NoulPunctaj;
+                let NouaCarte = document.createElement("P");
+                NouaCarte.innerHTML = Player.UltimaCarte;
+                NouaCarte.style.display = "inline-block";
+                NouaCarte.style.margin = "1em";
+                Afisare_CartiMana.push(NouaCarte);
+                Afisare_CartiMana[Afisare_CartiMana.length - 1].style.color = getRandomColor();
+                divul.appendChild(Afisare_CartiMana[Afisare_CartiMana.length - 1]);
+                document.getElementById("AfisarePuncte").innerHTML = "Punctele din mana: " + Player.Puncte;
+                DivulInput.appendChild(InputulButon);
+                Player.OK = 0;
+                document.body.removeChild(UltimaCarticica);
+                if(CanIFinish == true){
+                  document.body.appendChild(Claim);
+                }
+              });
+            }
+          }
+          Claim.onclick = function(){
+            socket.emit("CereJucatorCurent",{});
+            socket.on("PrimesteJucatorCurent",function(dataa){
+              socket.removeListener("PrimesteJucatorCurent");
+            if(dataa.JucatorCurent == Player.id && Player.OK == 0)
+              socket.emit("TerminaJoc",{
+                Idul:Player.id,
+                Puncte:Player.Puncte,
+              });
+          });
+          }
+        }
+      else {
+        alert("Nu e randul tau sau nu sunt destui jucatori");
+      }
+      });
+  }
+</script>
+</body>
+</html>
